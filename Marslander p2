@@ -1,0 +1,151 @@
+import sys
+import math
+
+class statek():
+    def __init__(self):
+        self.pos       = [0,0]
+        self.pos_init  = [0,0]
+        self.init_flag = 1
+        self.v_speed   = 0
+        self.h_speed   = 0
+        self.h_speed_init = 0
+
+        self.angle     = -25
+        self.power     = 4
+
+        self.x_left    = 0
+        self.x_right   = 0
+        self.x_mean    = 0
+        self.land_high = 0
+
+        self.point     = 0
+        self.rounds    = 0
+        self.etap      = 0
+        self.granice   = [0,0,0,0]
+    def Data_update(self,pos,v_speed,h_speed):
+        if self.init_flag == 1:
+            self.init_flag = 0
+            self.pos_init = pos
+            self.h_speed_init = h_speed
+        self.pos = pos
+        self.v_speed = v_speed
+        self.h_speed = h_speed
+        if self.pos[0]<self.x_mean:
+            self.x_mean = self.x_left + 150
+        else:
+            self.x_mean = self.x_right - 150
+        self.strona = 1#znak((self.x_left+self.x_right)/2 - self.pos[0])
+    def Przyspieszanie(self,wariant = 0,t = 0):
+        if wariant == 0:
+            self.angle = -znak(self.x_mean - self.pos[0])*21
+        if wariant == 1:
+            angle = -znak(self.x_mean - self.pos[0])*21
+            suma = self.h_speed
+            vel = 0
+            for i in range(t):
+                suma += self.power*math.sin(angle)*2*i
+                vel = (self.power*math.sin(angle)*2*i)
+            return (-suma),-vel+self.h_speed_init
+            
+    def Hamowanie(self,wariant=0,v=0):
+        kat=0
+        print('V',v,file=sys.stderr)
+        if self.land_high >1500:
+            kat = znak(self.x_mean - self.pos_init[0])*21
+        else:
+            kat = znak(self.x_mean - self.pos_init[0])*35
+        if wariant == 0:
+            self.angle = kat
+        if wariant == 1:
+            return -(v**2)/(2*math.sin(kat)*self.power)
+
+    def Ladowanie(self):
+        print('self.v_speed',self.v_speed,file=sys.stderr)
+        self.angle = 0
+        if self.v_speed < -38:
+            self.power = 4
+        else:
+            self.power = 1
+    def sprawdz(self):
+        flaga = True
+        vel = self.h_speed
+        counter = 1
+        while flaga:
+            przysp_dist,przysp_vel = self.Przyspieszanie(1,counter)
+            ham_dist = self.Hamowanie(1,przysp_vel)
+            print('przysp',self.Przyspieszanie(1,counter),'2',ham_dist,file=sys.stderr)
+
+            if self.x_left +150<(self.pos[0] + ham_dist + (2 * przysp_vel) + przysp_dist)<self.x_right-150:
+                self.granice[0] = self.pos[0]
+                self.granice[1] = self.pos[0] + przysp_dist
+                self.granice[2] = self.granice[1] + 2 * przysp_vel
+                self.granice[3] = self.granice[2] + ham_dist
+                print('self',self.granice,file=sys.stderr)
+                flaga = False
+            counter+=1
+            
+def znak(wartosc):
+    if wartosc < 0:
+        return -1
+    elif wartosc > 0:
+        return 1
+    else:
+        return 0
+
+rakieta = statek()
+land_y,land_x  = 0,0
+land_x_last, land_y_last = 0,0
+LAND_Y,LAND_LEFT,LAND_RIGHT = 0,0,0
+surface_n = int(input())  # the number of points used to draw the surface of Mars.
+for i in range(surface_n):
+    land_x, land_y = [int(j) for j in input().split()]
+    print(land_x,land_y,file=sys.stderr)
+    if land_y == land_y_last:
+        LAND_Y     = land_y
+        LAND_LEFT  = land_x_last
+        LAND_RIGHT = land_x
+    land_y_last,land_x_last = land_y,land_x
+
+rakieta.land_high = LAND_Y
+rakieta.x_mean  = (LAND_LEFT + LAND_RIGHT)/2
+rakieta.x_left  = LAND_LEFT
+rakieta.x_right = LAND_RIGHT
+g = 3.711
+p = 4
+rounds = 0
+init = True
+init_x = 0
+ladowanie = False
+while True:
+    x, y, h_speed, v_speed, fuel, rotate, power = [int(i) for i in input().split()]
+    if init == True:
+        rakieta.Data_update([x,y],v_speed,h_speed)
+        rakieta.sprawdz()
+        init = False
+        init_x = x
+    else:
+        rakieta.Data_update([x,y],v_speed,h_speed)
+    if rakieta.x_mean - init_x<0:
+        if ladowanie == True:
+            rakieta.Ladowanie()
+        elif rakieta.granice[1]<=x<=rakieta.granice[0]:
+            rakieta.Przyspieszanie()
+        elif rakieta.granice[2]<x<=rakieta.granice[1]:
+            rakieta.Hamowanie()
+        elif rakieta.granice[2]>x:
+            rakieta.Hamowanie()
+            if abs(rakieta.h_speed) <= 18 :
+                ladowanie = True
+    else:
+        if ladowanie == True:
+            rakieta.Ladowanie()
+        elif rakieta.granice[0]<=x<=rakieta.granice[1]:
+            rakieta.Przyspieszanie()
+        elif rakieta.granice[1]<x<=rakieta.granice[2]:
+            rakieta.Hamowanie()
+        elif rakieta.granice[2]<x:
+            rakieta.Hamowanie()
+            if abs(rakieta.h_speed) <= 18 :
+                ladowanie = True
+
+    print(str(rakieta.angle) + ' ' +  str(rakieta.power))
